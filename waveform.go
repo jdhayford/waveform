@@ -174,7 +174,7 @@ func (w *Waveform) readAndComputeSamples() ([]float64, error) {
 		// Decode at specified resolution from options
 		// On any error other than end-of-stream, return
 		_, err := decoder.Read(samples)
-		if err != nil && err != audio.EOS {
+		if err != nil && err != io.EOF {
 			return nil, err
 		}
 
