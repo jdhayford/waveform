@@ -2,12 +2,14 @@
 package waveform
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"io"
 	"math"
 
 	"azul3d.org/engine/audio"
+	"github.com/hajimehoshi/go-mp3"
 
 	// Import WAV and FLAC decoders
 	_ "azul3d.org/engine/audio/flac"
@@ -66,12 +68,16 @@ type Waveform struct {
 // methods of a Waveform struct.  In general, Generate should only be used
 // for one-time waveform image generation.
 func Generate(r io.Reader, options ...OptionsFunc) (image.Image, error) {
+	fmt.Println("Generate()-start")
+	fmt.Println(options)
 	w, err := New(r, options...)
 	if err != nil {
 		return nil, err
 	}
 
+	fmt.Println("Generate()-compute")
 	values, err := w.Compute()
+	fmt.Println("Generate()-draw")
 	return w.Draw(values), err
 }
 
@@ -124,6 +130,7 @@ func (w *Waveform) Compute() ([]float64, error) {
 // of computed values was returned from the first computation.  Subsequent calls to
 // Draw may be used to customize a waveform using the same input values.
 func (w *Waveform) Draw(values []float64) image.Image {
+	fmt.Println("Draw()")
 	return w.generateImage(values)
 }
 
@@ -140,28 +147,15 @@ func (w *Waveform) readAndComputeSamples() ([]float64, error) {
 	if w.resolution == 0 {
 		return nil, errResolutionZero
 	}
-
+	fmt.Println("New Decorder")
+	fmt.Println(w.r)
 	// Open audio decoder on input stream
-	decoder, _, err := audio.NewDecoder(w.r)
+	decoder, err := mp3.NewDecoder(w.r)
 	if err != nil {
-		// Unknown format
-		if err == audio.ErrFormat {
-			return nil, ErrFormat
-		}
-
-		// Invalid data
-		if err == audio.ErrInvalidData {
-			return nil, ErrInvalidData
-		}
-
-		// Unexpected end-of-stream
-		if err == audio.ErrUnexpectedEOS {
-			return nil, ErrUnexpectedEOS
-		}
-
-		// All other errors
 		return nil, err
 	}
+
+	fmt.Println(decoder)
 
 	// computed is a slice of computed values by a SampleReduceFunc, from each
 	// slice of audio samples
@@ -169,11 +163,14 @@ func (w *Waveform) readAndComputeSamples() ([]float64, error) {
 
 	// Track the current computed value
 	var value float64
-
-	// samples is a slice of float64 audio samples, used to store decoded values
-	config := decoder.Config()
-	samples := make(audio.Float64, uint(config.SampleRate*config.Channels)/w.resolution)
+	fmt.Println("New New")
+	assumedChannelCount := 2
+	// samples is a slice of byte audio samples, used to store decoded values
+	samples := make([]byte, uint(decoder.SampleRate()*assumedChannelCount)/w.resolution)
+	i := 0
 	for {
+		fmt.Println(i)
+		i++
 		// Decode at specified resolution from options
 		// On any error other than end-of-stream, return
 		_, err := decoder.Read(samples)
@@ -181,14 +178,14 @@ func (w *Waveform) readAndComputeSamples() ([]float64, error) {
 			return nil, err
 		}
 
-		// Apply SampleReduceFunc over float64 audio samples
+		// Apply SampleReduceFunc over samples
 		value = w.sampleFn(samples)
 
 		// Store computed value
 		computed = append(computed, value)
 
 		// On end of stream, stop reading values
-		if err == audio.EOS {
+		if err == io.EOF {
 			break
 		}
 	}
@@ -200,6 +197,7 @@ func (w *Waveform) readAndComputeSamples() ([]float64, error) {
 // generateImage takes a slice of computed values and generates
 // a waveform image from the input.
 func (w *Waveform) generateImage(computed []float64) image.Image {
+	fmt.Println("Here")
 	// Store integer scale values
 	intScaleX := int(w.scaleX)
 	intScaleY := int(w.scaleY)
@@ -251,6 +249,7 @@ func (w *Waveform) generateImage(computed []float64) image.Image {
 	// Begin iterating all computed values
 	x := 0
 	for n := range computed {
+		fmt.Println(n)
 		// Scale computed value to an integer, using the height of the image and a constant
 		// scaling factor
 		scaleComputed = int(math.Floor(computed[n] * f64BoundY * imgScale))

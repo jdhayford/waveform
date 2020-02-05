@@ -12,7 +12,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/mdlayher/waveform"
+	"github.com/jdhayford/waveform"
 )
 
 const (
